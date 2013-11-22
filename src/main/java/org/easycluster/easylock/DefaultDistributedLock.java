@@ -4,11 +4,9 @@
 package org.easycluster.easylock;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,9 +16,10 @@ public class DefaultDistributedLock implements DistributedLock {
 	private static final Logger	LOGGER			= LoggerFactory.getLogger(DefaultDistributedLock.class);
 
 	private String				lockResource	= null;
-	protected LockManager		lockManager		= null;
+	private LockManager			lockManager		= null;
+	private volatile String		lockId			= null;
 	private volatile LockStatus	status			= LockStatus.STANDBY;
-	private ReentrantLock		statusLock		= new ReentrantLock();
+	private ReadWriteLock		statusLock		= new ReentrantReadWriteLock();
 
 	public DefaultDistributedLock(final String lockResource) {
 		this.lockResource = lockResource;
@@ -28,32 +27,106 @@ public class DefaultDistributedLock implements DistributedLock {
 
 	/**
 	 * {@inheritDoc}
+	 * 
 	 */
 	@Override
-	public Future<String> lock() {
+	public void awaitLock() throws InterruptedException {
+		if (LOGGER.isDebugEnabled()) {
+			LOGGER.debug("Acquiring a lock on lockResource " + lockResource);
+		}
 
-		statusLock.lock();
+		final CountDownLatch latch = new CountDownLatch(1);
+		lockManager.acquireLock(lockResource, new LockUpdateCallback() {
 
-		try {
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("Acquiring a lock on lockResource " + lockResource);
-			}
-			final ResponseFuture future = new ResponseFuture();
-
-			lockManager.acquireLock(lockResource, new LockUpdateCallback() {
-
-				@Override
-				public void updateLockState(String lockId, LockStatus lockStatus, Object updateData) {
-					status = lockStatus;
-					if (LockStatus.MASTER == lockStatus) {
-						future.offerResponse(lockId);
-					}
+			@Override
+			public void updateLockState(String lockId, LockStatus lockStatus) {
+				updateStatus(lockId, lockStatus);
+				if (LockStatus.MASTER == lockStatus) {
+					latch.countDown();
 				}
-			}, null);
+			}
+		});
 
-			return future;
+		latch.await();
+
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * 
+	 */
+	@Override
+	public boolean awaitLock(long timeout, TimeUnit unit) throws InterruptedException {
+		if (LOGGER.isDebugEnabled()) {
+			LOGGER.debug("Acquiring a lock on lockResource " + lockResource);
+		}
+
+		final CountDownLatch latch = new CountDownLatch(1);
+		lockManager.acquireLock(lockResource, new LockUpdateCallback() {
+
+			@Override
+			public void updateLockState(String lockId, LockStatus lockStatus) {
+				updateStatus(lockId, lockStatus);
+				if (LockStatus.MASTER == lockStatus) {
+					latch.countDown();
+				}
+			}
+
+		});
+
+		return latch.await(timeout, unit);
+
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * 
+	 */
+	@Override
+	public void awaitLockUninterruptibly() {
+		boolean completed = false;
+
+		while (!completed) {
+			try {
+				awaitLock();
+				completed = true;
+			} catch (InterruptedException e) {
+				unlock();
+			}
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * 
+	 */
+	@Override
+	public void lock(final LockUpdateCallback callback) {
+		if (LOGGER.isDebugEnabled()) {
+			LOGGER.debug("Acquiring a lock on lockResource " + lockResource);
+		}
+
+		lockManager.acquireLock(lockResource, new LockUpdateCallback() {
+
+			@Override
+			public void updateLockState(String lockId, LockStatus lockStatus) {
+				updateStatus(lockId, lockStatus);
+
+				if (callback != null) {
+					callback.updateLockState(lockId, lockStatus);
+				}
+			}
+		});
+
+	}
+
+	private void updateStatus(String lockId, LockStatus lockStatus) {
+		statusLock.writeLock().lock();
+		try {
+			this.lockId = lockId;
+			this.status = lockStatus;
 		} finally {
-			statusLock.unlock();
+			statusLock.writeLock().unlock();
 		}
 	}
 
@@ -61,19 +134,19 @@ public class DefaultDistributedLock implements DistributedLock {
 	 * {@inheritDoc}
 	 */
 	@Override
-	public void unlock(String lockId) {
-		if (lockId == null) {
-			throw new IllegalArgumentException("lockId is null");
-		}
-
-		statusLock.lock();
+	public void unlock() {
+		statusLock.writeLock().lock();
 		try {
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("Releasing the lock " + lockId);
+			if (lockId != null) {
+				if (LOGGER.isDebugEnabled()) {
+					LOGGER.debug("Releasing the lock " + lockId);
+				}
+				lockManager.releaseLock(lockId, false);
 			}
-			lockManager.releaseLock(lockId, true);
+			lockId = null;
+			status = LockStatus.STANDBY;
 		} finally {
-			statusLock.unlock();
+			statusLock.writeLock().unlock();
 		}
 	}
 
@@ -82,17 +155,26 @@ public class DefaultDistributedLock implements DistributedLock {
 	 */
 	@Override
 	public LockStatus getStatus() {
-		return status;
+		statusLock.readLock().lock();
+		try {
+			return status;
+		} finally {
+			statusLock.readLock().unlock();
+		}
 	}
 
 	/**
 	 * {@inheritDoc}
 	 */
 	@Override
-	public String getLockResource() {
+	public String getResource() {
 		return lockResource;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
 	public void setLockManager(LockManager lockManager) {
 		this.lockManager = lockManager;
 	}
@@ -105,50 +187,8 @@ public class DefaultDistributedLock implements DistributedLock {
 		StringBuilder builder = new StringBuilder(super.toString());
 		builder.append(",resource=").append(lockResource);
 		builder.append(",status=").append(status);
+		builder.append(",lockId=").append(lockId);
 		return builder.toString();
-	}
-
-}
-
-class ResponseFuture implements Future<String> {
-
-	private CountDownLatch	latch		= new CountDownLatch(1);
-	private volatile String	response	= null;
-
-	@Override
-	public boolean cancel(boolean mayInterruptIfRunning) {
-		return false;
-	}
-
-	@Override
-	public boolean isCancelled() {
-		return false;
-	}
-
-	@Override
-	public boolean isDone() {
-		return latch.getCount() == 0;
-	}
-
-	@Override
-	public String get() throws InterruptedException, ExecutionException {
-		latch.await();
-		return response;
-	}
-
-	@Override
-	public String get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-		boolean result = latch.await(timeout, unit);
-		if (!result || response == null) {
-			throw new TimeoutException("Timed out waiting for response");
-		}
-
-		return response;
-	}
-
-	public void offerResponse(String resp) {
-		response = resp;
-		latch.countDown();
 	}
 
 }

@@ -1,24 +1,48 @@
 package org.easycluster.easylock;
 
-import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public interface DistributedLock {
 
 	/**
-	 * Acquires the lock.
+	 * Acquire the lock with supplied resources and want to be the Master. This
+	 * method will wait indefinitely for the lock.
 	 * 
-	 * @return the id of the lock
-	 * 
+	 * @throws InterruptedException
+	 *             thrown if the current thread is interrupted while waiting
 	 */
-	Future<String> lock();
+	void awaitLock() throws InterruptedException;
+
+	/**
+	 * Acquire the lock with supplied resources and want to be the Master for
+	 * the specified duration of time.
+	 * 
+	 * @param timeout
+	 * @param unit
+	 * @return true if be master before the timeout, false if the timeout
+	 *         occurred
+	 * @throws InterruptedException
+	 */
+	boolean awaitLock(long timeout, TimeUnit unit) throws InterruptedException;
+
+	/**
+	 * Waits for acquiring to be the master. This method will wait indefinitely
+	 * for the lock and will swallow any <code>InterruptedException</code> s
+	 * thrown while waiting.
+	 */
+	void awaitLockUninterruptibly();
+
+	/**
+	 * Indicate to acquire the lock and want to be the Master if it is possible.
+	 * 
+	 * @param callback
+	 */
+	void lock(LockUpdateCallback callback);
 
 	/**
 	 * Releases the lock.
-	 * 
-	 * @param lockId
-	 *            the id of the lock
 	 */
-	void unlock(String lockId);
+	void unlock();
 
 	/**
 	 * Return the current lock status.
@@ -32,5 +56,12 @@ public interface DistributedLock {
 	 * 
 	 * @return
 	 */
-	String getLockResource();
+	String getResource();
+
+	/**
+	 * Set the lock manager.
+	 * 
+	 * @param lockManager
+	 */
+	void setLockManager(LockManager lockManager);
 }

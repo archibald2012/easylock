@@ -63,7 +63,7 @@ public class ZooKeeperLockManager implements LockManager {
 	 * {@inheritDoc}
 	 */
 	@Override
-	public void acquireLock(String lockResource, LockUpdateCallback callback, Object callbackData) {
+	public void acquireLock(String lockResource, LockUpdateCallback callback) {
 		if (LOGGER.isInfoEnabled()) {
 			LOGGER.info(lockInstance + " is acquiring a lock on lockResource " + lockResource);
 		}
@@ -71,7 +71,7 @@ public class ZooKeeperLockManager implements LockManager {
 		try {
 			verifyZooKeeperStructure(zooKeeper, lockRootNode + "/" + lockResource);
 			String lockId = createZNode(zooKeeper, lockRootNode + "/" + lockResource + "/" + lockInstance + "-", new byte[0], CreateMode.EPHEMERAL_SEQUENTIAL);
-			lockDataStore.put(lockId, new LockData(lockResource, callback, callbackData));
+			lockDataStore.put(lockId, new LockData(lockResource, callback));
 			checkLockStatus(lockId, lockResource);
 		} catch (Exception ex) {
 			throw new LockException("Unhandled exception while working with ZooKeeper", ex);
@@ -106,7 +106,7 @@ public class ZooKeeperLockManager implements LockManager {
 		if (notify && data != null) {
 			LockUpdateCallback updateCallback = data.getUpdateCallback();
 			if (updateCallback != null) {
-				updateCallback.updateLockState(lockId, LockStatus.STANDBY, data.getCallbackData());
+				updateCallback.updateLockState(lockId, LockStatus.STANDBY);
 			}
 
 		}
@@ -140,7 +140,9 @@ public class ZooKeeperLockManager implements LockManager {
 		List<String> children = zooKeeper.getChildren(lockPath, false);
 		if (children.isEmpty()) {
 			String error = "No children in [" + lockPath + "] although one was just created. just failed lock progress.";
-			throw new LockException(error);
+			LOGGER.error(error);
+			//throw new LockException(error);
+			return;
 		}
 
 		// check what is our ID (sequence number at the end of file name)
@@ -232,7 +234,7 @@ public class ZooKeeperLockManager implements LockManager {
 		if (data != null) {
 			LockUpdateCallback updateCallback = data.getUpdateCallback();
 			if (updateCallback != null) {
-				updateCallback.updateLockState(lockId, newStatus, data.getCallbackData());
+				updateCallback.updateLockState(lockId, newStatus);
 			}
 		} else {
 			if (LOGGER.isWarnEnabled()) {
@@ -371,12 +373,10 @@ public class ZooKeeperLockManager implements LockManager {
 	class LockData {
 		private String				lockResource;
 		private LockUpdateCallback	updateCallback;
-		private Object				callbackData;
 
-		public LockData(String lockResource, LockUpdateCallback updateCallback, Object callbackData) {
+		public LockData(String lockResource, LockUpdateCallback updateCallback) {
 			this.lockResource = lockResource;
 			this.updateCallback = updateCallback;
-			this.callbackData = callbackData;
 		}
 
 		public String getLockResource() {
@@ -385,10 +385,6 @@ public class ZooKeeperLockManager implements LockManager {
 
 		public LockUpdateCallback getUpdateCallback() {
 			return updateCallback;
-		}
-
-		public Object getCallbackData() {
-			return callbackData;
 		}
 
 	}

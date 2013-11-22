@@ -21,13 +21,13 @@ public class ZooKeeperLockManagerTest {
 		lockManager.acquireLock(lockResource, new LockUpdateCallback() {
 
 			@Override
-			public void updateLockState(String lockId, LockStatus lockStatus, Object updateData) {
+			public void updateLockState(String lockId, LockStatus lockStatus) {
 				lockManager.releaseLock(lockId, false);
 				lockManager.releaseLock(lockId, false);
 				lockManager.releaseLock(lockId, false);
 				latch.countDown();
 			}
-		}, null);
+		});
 
 		latch.await();
 	}
@@ -43,7 +43,7 @@ public class ZooKeeperLockManagerTest {
 		final LockUpdateCallback callback = new LockUpdateCallback() {
 
 			@Override
-			public void updateLockState(String lockId, LockStatus lockStatus, Object updateData) {
+			public void updateLockState(String lockId, LockStatus lockStatus) {
 				if (LockStatus.MASTER == lockStatus) {
 					lockManager.releaseLock(lockId, false);
 					latch.countDown();
@@ -56,7 +56,7 @@ public class ZooKeeperLockManagerTest {
 
 				@Override
 				public void run() {
-					lockManager.acquireLock(lockResource, callback, null);
+					lockManager.acquireLock(lockResource, callback);
 				}
 			}).start();
 		}
@@ -85,7 +85,7 @@ public class ZooKeeperLockManagerTest {
 				mutexLock1.acquireLock(lockResource, new LockUpdateCallback() {
 
 					@Override
-					public void updateLockState(String lockId, LockStatus lockStatus, Object updateData) {
+					public void updateLockState(String lockId, LockStatus lockStatus) {
 						if (LockStatus.MASTER == lockStatus) {
 							latch.countDown();
 							mutexLock1.releaseLock(lockId, true);
@@ -95,11 +95,11 @@ public class ZooKeeperLockManagerTest {
 							} catch (InterruptedException e) {
 								e.printStackTrace();
 							}
-							mutexLock1.acquireLock(lockResource, this, null);
+							mutexLock1.acquireLock(lockId, this);
 						}
 
 					}
-				}, null);
+				});
 
 			}
 
@@ -112,7 +112,7 @@ public class ZooKeeperLockManagerTest {
 				mutexLock2.acquireLock(lockResource, new LockUpdateCallback() {
 
 					@Override
-					public void updateLockState(String lockId, LockStatus lockStatus, Object updateData) {
+					public void updateLockState(String lockId, LockStatus lockStatus) {
 						if (LockStatus.MASTER == lockStatus) {
 							latch.countDown();
 							mutexLock2.releaseLock(lockId, true);
@@ -122,10 +122,10 @@ public class ZooKeeperLockManagerTest {
 							} catch (InterruptedException e) {
 								e.printStackTrace();
 							}
-							mutexLock2.acquireLock(lockResource, this, null);
+							mutexLock2.acquireLock(lockId, this);
 						}
 					}
-				}, null);
+				});
 
 			}
 
@@ -138,7 +138,7 @@ public class ZooKeeperLockManagerTest {
 				LockUpdateCallback callback = new LockUpdateCallback() {
 
 					@Override
-					public void updateLockState(String lockId, LockStatus lockStatus, Object updateData) {
+					public void updateLockState(String lockId, LockStatus lockStatus) {
 						if (LockStatus.MASTER == lockStatus) {
 							latch.countDown();
 							mutexLock3.releaseLock(lockId, true);
@@ -148,11 +148,11 @@ public class ZooKeeperLockManagerTest {
 							} catch (InterruptedException e) {
 								e.printStackTrace();
 							}
-							mutexLock3.acquireLock(lockResource, this, null);
+							mutexLock3.acquireLock(lockId, this);
 						}
 					}
 				};
-				mutexLock3.acquireLock(lockResource, callback, null);
+				mutexLock3.acquireLock(lockResource, callback);
 
 			}
 

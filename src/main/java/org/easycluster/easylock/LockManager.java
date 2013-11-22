@@ -8,9 +8,8 @@ public interface LockManager {
 	 * 
 	 * @param lockResource
 	 * @param callback
-	 * @param callbackData
 	 */
-	void acquireLock(String lockResource, LockUpdateCallback callback, Object callbackData);
+	void acquireLock(String lockResource, LockUpdateCallback callback);
 
 	/**
 	 * Indicate to release the Master lock if this instance is holding on it. It
