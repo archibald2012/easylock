@@ -17,6 +17,7 @@ public class DefaultDistributedLock implements DistributedLock {
 
 	private String				lockResource	= null;
 	private LockManager			lockManager		= null;
+	private volatile boolean	isAcquired		= false;
 	private volatile String		lockId			= null;
 	private volatile LockStatus	status			= LockStatus.STANDBY;
 	private ReadWriteLock		statusLock		= new ReentrantReadWriteLock();
@@ -34,6 +35,12 @@ public class DefaultDistributedLock implements DistributedLock {
 		if (LOGGER.isDebugEnabled()) {
 			LOGGER.debug("Acquiring a lock on lockResource " + lockResource);
 		}
+
+		if (isAcquired) {
+			throw new LockException("Acquiring a duplicated lock on lockResource " + lockResource);
+		}
+
+		isAcquired = true;
 
 		final CountDownLatch latch = new CountDownLatch(1);
 		lockManager.acquireLock(lockResource, new LockUpdateCallback() {
@@ -61,6 +68,12 @@ public class DefaultDistributedLock implements DistributedLock {
 			LOGGER.debug("Acquiring a lock on lockResource " + lockResource);
 		}
 
+		if (isAcquired) {
+			throw new LockException("Acquiring a duplicated lock on lockResource " + lockResource);
+		}
+
+		isAcquired = true;
+
 		final CountDownLatch latch = new CountDownLatch(1);
 		lockManager.acquireLock(lockResource, new LockUpdateCallback() {
 
@@ -75,7 +88,6 @@ public class DefaultDistributedLock implements DistributedLock {
 		});
 
 		return latch.await(timeout, unit);
-
 	}
 
 	/**
@@ -105,6 +117,11 @@ public class DefaultDistributedLock implements DistributedLock {
 		if (LOGGER.isDebugEnabled()) {
 			LOGGER.debug("Acquiring a lock on lockResource " + lockResource);
 		}
+		if (isAcquired) {
+			throw new LockException("Acquiring a duplicated lock on lockResource " + lockResource);
+		}
+
+		isAcquired = true;
 
 		lockManager.acquireLock(lockResource, new LockUpdateCallback() {
 
@@ -145,6 +162,7 @@ public class DefaultDistributedLock implements DistributedLock {
 			}
 			lockId = null;
 			status = LockStatus.STANDBY;
+			isAcquired = false;
 		} finally {
 			statusLock.writeLock().unlock();
 		}

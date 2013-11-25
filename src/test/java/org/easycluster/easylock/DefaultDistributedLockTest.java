@@ -24,10 +24,7 @@ public class DefaultDistributedLockTest {
 	@Test
 	public void testlock() throws Exception {
 		final String lockResource = UUID.randomUUID().toString();
-		final DefaultDistributedLock lock = new DefaultDistributedLock(lockResource);
-		ZooKeeperLockManager lockManager = new ZooKeeperLockManager("127.0.0.1:2181");
-		lock.setLockManager(lockManager);
-
+		final ZooKeeperLockManager lockManager = new ZooKeeperLockManager("127.0.0.1:2181");
 		int num = 10;
 		final CountDownLatch latch = new CountDownLatch(num);
 		for (int i = 0; i < num; i++) {
@@ -36,10 +33,15 @@ public class DefaultDistributedLockTest {
 				@Override
 				public void run() {
 
+					final DefaultDistributedLock lock = new DefaultDistributedLock(lockResource);
+					lock.setLockManager(lockManager);
+
 					try {
-						lock.awaitLock(1000, TimeUnit.MILLISECONDS);
+						lock.awaitLock();
 					} catch (InterruptedException e) {
 						e.printStackTrace();
+					} finally {
+						lock.unlock();
 					}
 
 					latch.countDown();
@@ -49,13 +51,21 @@ public class DefaultDistributedLockTest {
 		latch.await();
 	}
 
-	@Test
-	public void testUnlock() throws Exception {
+	@Test(expected = LockException.class)
+	public void testlockDuplicated() throws Exception {
 		final String lockResource = UUID.randomUUID().toString();
 		final DefaultDistributedLock lock = new DefaultDistributedLock(lockResource);
 		ZooKeeperLockManager lockManager = new ZooKeeperLockManager("127.0.0.1:2181");
 		lock.setLockManager(lockManager);
 
+		lock.awaitLock();
+		lock.awaitLock();
+	}
+
+	@Test
+	public void testUnlock() throws Exception {
+		final String lockResource = UUID.randomUUID().toString();
+		final ZooKeeperLockManager lockManager = new ZooKeeperLockManager("127.0.0.1:2181");
 		int num = 10;
 		final CountDownLatch latch = new CountDownLatch(num);
 		for (int i = 0; i < num; i++) {
@@ -65,9 +75,15 @@ public class DefaultDistributedLockTest {
 				public void run() {
 
 					try {
-						lock.awaitLock(1000, TimeUnit.MILLISECONDS);
+						final DefaultDistributedLock lock = new DefaultDistributedLock(lockResource);
+						lock.setLockManager(lockManager);
+
+						lock.awaitLock(10000, TimeUnit.MILLISECONDS);
+						assertEquals(LockStatus.MASTER, lock.getStatus());
 						lock.unlock();
+						assertEquals(LockStatus.STANDBY, lock.getStatus());
 						lock.unlock();
+						assertEquals(LockStatus.STANDBY, lock.getStatus());
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}

@@ -100,15 +100,14 @@ public class ZooKeeperLockManager implements LockManager {
 			throw new LockException("Unhandled exception while working with ZooKeeper", e);
 		} catch (InterruptedException e) {
 			throw new LockException("Unhandled exception while working with ZooKeeper", e);
-		}
-
-		LockData data = lockDataStore.remove(lockId);
-		if (notify && data != null) {
-			LockUpdateCallback updateCallback = data.getUpdateCallback();
-			if (updateCallback != null) {
-				updateCallback.updateLockState(lockId, LockStatus.STANDBY);
+		} finally {
+			LockData data = lockDataStore.remove(lockId);
+			if (notify && data != null) {
+				LockUpdateCallback updateCallback = data.getUpdateCallback();
+				if (updateCallback != null) {
+					updateCallback.updateLockState(lockId, LockStatus.STANDBY);
+				}
 			}
-
 		}
 	}
 
@@ -141,7 +140,7 @@ public class ZooKeeperLockManager implements LockManager {
 		if (children.isEmpty()) {
 			String error = "No children in [" + lockPath + "] although one was just created. just failed lock progress.";
 			LOGGER.error(error);
-			//throw new LockException(error);
+			// throw new LockException(error);
 			return;
 		}
 
@@ -232,8 +231,10 @@ public class ZooKeeperLockManager implements LockManager {
 		}
 		LockData data = lockDataStore.get(lockId);
 		if (data != null) {
+			boolean isUpdated = (data.getLockStatus() != newStatus);
+			data.setLockStatus(newStatus);
 			LockUpdateCallback updateCallback = data.getUpdateCallback();
-			if (updateCallback != null) {
+			if (isUpdated && updateCallback != null) {
 				updateCallback.updateLockState(lockId, newStatus);
 			}
 		} else {
@@ -285,13 +286,16 @@ public class ZooKeeperLockManager implements LockManager {
 		}
 
 		verifyZooKeeperStructure(zooKeeper, lockRootNode);
-		connectedLatch.countDown();
+		if (connectedLatch.getCount() > 0) {
+			connectedLatch.countDown();
+		}
 	}
 
 	void handleDisconnected() {
 		if (LOGGER.isInfoEnabled()) {
 			LOGGER.info("handleDisconnected");
 		}
+		// mark status as disconnected
 		connectedLatch = new CountDownLatch(1);
 	}
 
@@ -373,6 +377,7 @@ public class ZooKeeperLockManager implements LockManager {
 	class LockData {
 		private String				lockResource;
 		private LockUpdateCallback	updateCallback;
+		private LockStatus			lockStatus;
 
 		public LockData(String lockResource, LockUpdateCallback updateCallback) {
 			this.lockResource = lockResource;
@@ -387,5 +392,12 @@ public class ZooKeeperLockManager implements LockManager {
 			return updateCallback;
 		}
 
+		public LockStatus getLockStatus() {
+			return lockStatus;
+		}
+
+		public void setLockStatus(LockStatus lockStatus) {
+			this.lockStatus = lockStatus;
+		}
 	}
 }

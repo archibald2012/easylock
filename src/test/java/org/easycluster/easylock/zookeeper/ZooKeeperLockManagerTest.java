@@ -38,7 +38,8 @@ public class ZooKeeperLockManagerTest {
 
 		final ZooKeeperLockManager lockManager = new ZooKeeperLockManager("127.0.0.1:2181");
 
-		final CountDownLatch latch = new CountDownLatch(50);
+		int num = 1000;
+		final CountDownLatch latch = new CountDownLatch(num);
 
 		final LockUpdateCallback callback = new LockUpdateCallback() {
 
@@ -51,7 +52,7 @@ public class ZooKeeperLockManagerTest {
 			}
 		};
 
-		for (int i = 0; i < 50; i++) {
+		for (int i = 0; i < num; i++) {
 			new Thread(new Runnable() {
 
 				@Override
@@ -64,8 +65,8 @@ public class ZooKeeperLockManagerTest {
 		latch.await();
 	}
 
-	//@Test
-	public void testAcquire() throws Exception {
+	@Test
+	public void testAcquire_multipleInstance() throws Exception {
 
 		final String lockResource = UUID.randomUUID().toString();
 
@@ -76,7 +77,7 @@ public class ZooKeeperLockManagerTest {
 		final ZooKeeperLockManager mutexLock3 = new ZooKeeperLockManager("127.0.0.1:2181");
 		mutexLock3.setLockInstance("host3");
 
-		final CountDownLatch latch = new CountDownLatch(30);
+		final CountDownLatch latch = new CountDownLatch(1000);
 
 		new Thread(new Runnable() {
 
@@ -88,16 +89,9 @@ public class ZooKeeperLockManagerTest {
 					public void updateLockState(String lockId, LockStatus lockStatus) {
 						if (LockStatus.MASTER == lockStatus) {
 							latch.countDown();
-							mutexLock1.releaseLock(lockId, true);
-						} else {
-							try {
-								Thread.sleep(1000);
-							} catch (InterruptedException e) {
-								e.printStackTrace();
-							}
-							mutexLock1.acquireLock(lockId, this);
+							mutexLock3.releaseLock(lockId, true);
+							mutexLock3.acquireLock(lockResource, this);
 						}
-
 					}
 				});
 
@@ -115,14 +109,8 @@ public class ZooKeeperLockManagerTest {
 					public void updateLockState(String lockId, LockStatus lockStatus) {
 						if (LockStatus.MASTER == lockStatus) {
 							latch.countDown();
-							mutexLock2.releaseLock(lockId, true);
-						} else {
-							try {
-								Thread.sleep(1000);
-							} catch (InterruptedException e) {
-								e.printStackTrace();
-							}
-							mutexLock2.acquireLock(lockId, this);
+							mutexLock3.releaseLock(lockId, true);
+							mutexLock3.acquireLock(lockResource, this);
 						}
 					}
 				});
@@ -142,13 +130,7 @@ public class ZooKeeperLockManagerTest {
 						if (LockStatus.MASTER == lockStatus) {
 							latch.countDown();
 							mutexLock3.releaseLock(lockId, true);
-						} else {
-							try {
-								Thread.sleep(1000);
-							} catch (InterruptedException e) {
-								e.printStackTrace();
-							}
-							mutexLock3.acquireLock(lockId, this);
+							mutexLock3.acquireLock(lockResource, this);
 						}
 					}
 				};
