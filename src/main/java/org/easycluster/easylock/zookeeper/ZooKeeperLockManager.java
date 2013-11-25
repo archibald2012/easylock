@@ -104,7 +104,7 @@ public class ZooKeeperLockManager implements LockManager {
 			LockData data = lockDataStore.remove(lockId);
 			if (notify && data != null) {
 				LockUpdateCallback updateCallback = data.getUpdateCallback();
-				if (updateCallback != null) {
+				if (data.getLockStatus() == LockStatus.MASTER && updateCallback != null) {
 					updateCallback.updateLockState(lockId, LockStatus.STANDBY);
 				}
 			}
