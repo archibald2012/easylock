@@ -28,20 +28,20 @@ import org.slf4j.LoggerFactory;
 
 public class ZooKeeperLockManager implements LockManager {
 
-	private static final Logger					LOGGER			= LoggerFactory.getLogger(ZooKeeperLockManager.class);
+	private static final Logger						LOGGER			= LoggerFactory.getLogger(ZooKeeperLockManager.class);
 
-	private static final String					ZK_LOCK_ROOT	= "/Locks";
+	private static final String						ZK_LOCK_ROOT	= "/Locks";
 
-	private String								lockInstance	= SystemUtil.getHostName() + ":" + SystemUtil.getPid();
-	private String								lockRootNode	= null;
-	private String								connectString	= null;
-	private int									sessionTimeout	= 0;
-	private volatile ZooKeeper					zooKeeper		= null;
-	private volatile LockWatcher				watcher			= null;
-	private volatile CountDownLatch				connectedLatch	= null;
-	private ScheduledExecutorService			connExec		= Executors.newSingleThreadScheduledExecutor();
+	private String									lockInstance	= SystemUtil.getHostName() + ":" + SystemUtil.getPid();
+	private String									lockRootNode	= null;
+	private String									connectString	= null;
+	private int										sessionTimeout	= 0;
+	private volatile ZooKeeper						zooKeeper		= null;
+	private volatile LockWatcher					watcher			= null;
+	private volatile CountDownLatch					connectedLatch	= null;
+	private ScheduledExecutorService				connExec		= Executors.newSingleThreadScheduledExecutor();
 
-	private ConcurrentHashMap<String, LockData>	lockDataStore	= new ConcurrentHashMap<String, LockData>();
+	private ConcurrentHashMap<String, LockContext>	lockDataStore	= new ConcurrentHashMap<String, LockContext>();
 
 	public ZooKeeperLockManager(final String zooKeeperConnectString) {
 		this(zooKeeperConnectString, 30000, ZK_LOCK_ROOT);
@@ -71,7 +71,7 @@ public class ZooKeeperLockManager implements LockManager {
 		try {
 			verifyZooKeeperStructure(zooKeeper, lockRootNode + "/" + lockResource);
 			String lockId = createZNode(zooKeeper, lockRootNode + "/" + lockResource + "/" + lockInstance + "-", new byte[0], CreateMode.EPHEMERAL_SEQUENTIAL);
-			lockDataStore.put(lockId, new LockData(lockResource, callback));
+			lockDataStore.put(lockId, new LockContext(callback));
 			checkLockStatus(lockId, lockResource);
 		} catch (Exception ex) {
 			throw new LockException("Unhandled exception while working with ZooKeeper", ex);
@@ -101,7 +101,7 @@ public class ZooKeeperLockManager implements LockManager {
 		} catch (InterruptedException e) {
 			throw new LockException("Unhandled exception while working with ZooKeeper", e);
 		} finally {
-			LockData data = lockDataStore.remove(lockId);
+			LockContext data = lockDataStore.remove(lockId);
 			if (notify && data != null) {
 				LockUpdateCallback updateCallback = data.getUpdateCallback();
 				if (data.getLockStatus() == LockStatus.MASTER && updateCallback != null) {
@@ -229,7 +229,7 @@ public class ZooKeeperLockManager implements LockManager {
 		if (LOGGER.isDebugEnabled()) {
 			LOGGER.debug("updateStatus - lockInstance=[{}], lockId=[{}], status=[{}]", new Object[] { lockInstance, lockId, newStatus });
 		}
-		LockData data = lockDataStore.get(lockId);
+		LockContext data = lockDataStore.get(lockId);
 		if (data != null) {
 			boolean isUpdated = (data.getLockStatus() != newStatus);
 			data.setLockStatus(newStatus);
@@ -374,18 +374,12 @@ public class ZooKeeperLockManager implements LockManager {
 		}
 	}
 
-	class LockData {
-		private String				lockResource;
+	class LockContext {
 		private LockUpdateCallback	updateCallback;
 		private LockStatus			lockStatus;
 
-		public LockData(String lockResource, LockUpdateCallback updateCallback) {
-			this.lockResource = lockResource;
+		public LockContext(LockUpdateCallback updateCallback) {
 			this.updateCallback = updateCallback;
-		}
-
-		public String getLockResource() {
-			return lockResource;
 		}
 
 		public LockUpdateCallback getUpdateCallback() {
