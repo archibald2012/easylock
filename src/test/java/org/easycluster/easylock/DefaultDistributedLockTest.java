@@ -217,6 +217,7 @@ public class DefaultDistributedLockTest {
 						public void updateLockState(String lockId, LockStatus lockStatus) {
 							assertEquals(lockResource, lock.getResource());
 							if (LockStatus.MASTER == lock.getStatus()) {
+								// do something
 								assertEquals(LockStatus.MASTER, lock.getStatus());
 								lock.unlock();
 								assertEquals(LockStatus.STANDBY, lock.getStatus());

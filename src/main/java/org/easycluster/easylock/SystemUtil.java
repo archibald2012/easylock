@@ -11,15 +11,14 @@ import org.slf4j.LoggerFactory;
 
 public class SystemUtil {
 
-	private static final Logger logger = LoggerFactory
-			.getLogger(SystemUtil.class);
+	private static final Logger		LOGGER					= LoggerFactory.getLogger(SystemUtil.class);
 
-	private static final String DEFAULT_LOCAL_IPADDRESS = "127.0.0.1";
-	private static final String DEFAULT_LOCAL_HOSTNAME = "localhost";
-	private static final String DEFAULT_PID = "0";
+	private static final String		DEFAULT_LOCAL_IPADDRESS	= "127.0.0.1";
+	private static final String		DEFAULT_LOCAL_HOSTNAME	= "localhost";
+	private static final String		DEFAULT_PID				= "0";
 
-	private static String pid;
-	private static ReentrantLock pidLock = new ReentrantLock();
+	private static String			pid;
+	private static ReentrantLock	pidLock					= new ReentrantLock();
 
 	public static String getPid() {
 		if (pid == null) {
@@ -28,8 +27,7 @@ public class SystemUtil {
 				if (pid == null) {
 					try {
 						pid = DEFAULT_PID;
-						RuntimeMXBean runtime = ManagementFactory
-								.getRuntimeMXBean();
+						RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
 						if (runtime != null) {
 							String name = runtime.getName();
 							int index = name.indexOf('@');
@@ -38,9 +36,9 @@ public class SystemUtil {
 							}
 						}
 					} catch (Exception e) {
-						logger.warn(
-								"Unable to get runtimeName with error "
-										+ e.getMessage(), e);
+						if (LOGGER.isWarnEnabled()) {
+							LOGGER.warn("Unable to get runtimeName with error " + e.getMessage(), e);
+						}
 					}
 				}
 			} finally {
@@ -50,8 +48,8 @@ public class SystemUtil {
 		return pid;
 	}
 
-	private static String hostName;
-	private static ReentrantLock hostNameLock = new ReentrantLock();
+	private static String			hostName;
+	private static ReentrantLock	hostNameLock	= new ReentrantLock();
 
 	public static String getHostName() {
 		if (hostName == null) {
@@ -62,8 +60,9 @@ public class SystemUtil {
 						InetAddress address = InetAddress.getLocalHost();
 						hostName = address.getHostName();
 					} catch (UnknownHostException e) {
-						logger.warn("Unable to resolve hostname with error "
-								+ e.getMessage(), e);
+						if (LOGGER.isWarnEnabled()) {
+							LOGGER.warn("Unable to resolve hostname with error " + e.getMessage(), e);
+						}
 						hostName = DEFAULT_LOCAL_HOSTNAME;
 					}
 				}
@@ -74,8 +73,8 @@ public class SystemUtil {
 		return hostName;
 	}
 
-	private static String ipAddress;
-	private static ReentrantLock ipAddressLock = new ReentrantLock();
+	private static String			ipAddress;
+	private static ReentrantLock	ipAddressLock	= new ReentrantLock();
 
 	public static String getIpAddress() {
 		if (ipAddress == null) {
@@ -86,9 +85,9 @@ public class SystemUtil {
 						InetAddress address = InetAddress.getLocalHost();
 						ipAddress = address.getHostAddress();
 					} catch (UnknownHostException e) {
-						logger.warn(
-								"Unable to get hostAddress with error "
-										+ e.getMessage(), e);
+						if (LOGGER.isWarnEnabled()) {
+							LOGGER.warn("Unable to get hostAddress with error " + e.getMessage(), e);
+						}
 						ipAddress = DEFAULT_LOCAL_IPADDRESS;
 					}
 				}

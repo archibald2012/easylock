@@ -252,7 +252,7 @@ public class ZooKeeperLockManager implements LockManager {
 		connectedLatch = new CountDownLatch(1);
 
 		try {
-			watcher = new LockWatcher(this);
+			watcher = new LockWatcher();
 			zooKeeper = new ZooKeeper(connectString, sessionTimeout, watcher);
 
 			boolean connected = connectedLatch.await(10, TimeUnit.SECONDS);
@@ -343,12 +343,6 @@ public class ZooKeeperLockManager implements LockManager {
 	class LockWatcher implements Watcher {
 		private volatile boolean		shutdownSwitch	= false;
 
-		private ZooKeeperLockManager	zooKeeperLockManager;
-
-		public LockWatcher(ZooKeeperLockManager zooKeeperLockManager) {
-			this.zooKeeperLockManager = zooKeeperLockManager;
-		}
-
 		public void process(WatchedEvent event) {
 			if (LOGGER.isDebugEnabled()) {
 				LOGGER.debug("Received watched event {}", event);
@@ -360,11 +354,11 @@ public class ZooKeeperLockManager implements LockManager {
 
 			if (event.getType() == EventType.None) {
 				if (event.getState() == KeeperState.SyncConnected) {
-					zooKeeperLockManager.handleConnected();
+					handleConnected();
 				} else if (event.getState() == KeeperState.Expired) {
-					zooKeeperLockManager.handleExpired();
+					handleExpired();
 				} else if (event.getState() == KeeperState.Disconnected) {
-					zooKeeperLockManager.handleDisconnected();
+					handleDisconnected();
 				}
 			}
 		}
@@ -374,7 +368,7 @@ public class ZooKeeperLockManager implements LockManager {
 		}
 	}
 
-	class LockContext {
+	static class LockContext {
 		private LockUpdateCallback	updateCallback;
 		private LockStatus			lockStatus;
 
